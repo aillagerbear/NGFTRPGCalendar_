@@ -1,0 +1,12 @@
+[
+  {
+    "origin": [
+      "https://trpgcalendar-18a0a.web.app",
+      "https://trpgcalendar-18a0a.firebaseapp.com",
+      "https://ngftrpgcalendar.xyz"
+    ],
+    "method": ["GET", "HEAD", "PUT", "POST", "DELETE"],
+    "responseHeader": ["Content-Type"],
+    "maxAgeSeconds": 3600
+  }
+]
