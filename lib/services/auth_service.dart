@@ -6,6 +6,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:developer' as developer;
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 class AuthService extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -31,6 +32,8 @@ class AuthService extends ChangeNotifier {
       developer.log('Creating or updating user document for user: ${user.uid}', name: 'AuthService');
       DocumentReference userDocRef = _firestore.collection('users').doc(user.uid);
 
+      String? token = await FirebaseMessaging.instance.getToken();
+
       DocumentSnapshot doc = await userDocRef.get();
       if (!doc.exists) {
         developer.log('Creating new user document', name: 'AuthService');
@@ -38,6 +41,7 @@ class AuthService extends ChangeNotifier {
           'displayName': user.displayName,
           'email': user.email,
           'photoURL': user.photoURL,
+          'fcmToken': token,
           'createdAt': FieldValue.serverTimestamp(),
           'lastSignInTime': FieldValue.serverTimestamp(),
         });
@@ -46,6 +50,7 @@ class AuthService extends ChangeNotifier {
         developer.log('Updating existing user document', name: 'AuthService');
         await userDocRef.update({
           'lastSignInTime': FieldValue.serverTimestamp(),
+          'fcmToken': token,
         });
         developer.log('User document updated', name: 'AuthService');
       }
@@ -83,6 +88,7 @@ class AuthService extends ChangeNotifier {
           email: email, password: password);
       developer.log('Sign in successful. User ID: ${result.user?.uid}', name: 'AuthService');
       await createOrUpdateUserDocument(result.user!);
+      await updateFCMToken();
       return result.user;
     } catch (e) {
       developer.log('Sign in error: ${e.toString()}', name: 'AuthService');
@@ -102,6 +108,7 @@ class AuthService extends ChangeNotifier {
           email: email, password: password);
       developer.log('Registration successful. User ID: ${result.user?.uid}', name: 'AuthService');
       await createOrUpdateUserDocument(result.user!);
+      await updateFCMToken();
       return result.user;
     } catch (e) {
       developer.log('Registration error: ${e.toString()}', name: 'AuthService');
@@ -134,6 +141,7 @@ class AuthService extends ChangeNotifier {
       UserCredential result = await _auth.signInWithCredential(credential);
       developer.log('Google sign in successful. User ID: ${result.user?.uid}', name: 'AuthService');
       await createOrUpdateUserDocument(result.user!);
+      await updateFCMToken();
       return result;
     } catch (e) {
       developer.log('Google sign in error: ${e.toString()}', name: 'AuthService');
@@ -322,4 +330,27 @@ class AuthService extends ChangeNotifier {
       throw Exception('No user is currently signed in.');
     }
   }
+
+  Future<void> updateFCMToken() async {
+    User? user = _auth.currentUser;
+    if (user != null) {
+      try {
+        developer.log('Updating FCM token for user: ${user.uid}', name: 'AuthService');
+        String? token = await FirebaseMessaging.instance.getToken();
+        if (token != null) {
+          await _firestore.collection('users').doc(user.uid).update({
+            'fcmToken': token,
+          });
+          developer.log('FCM token updated successfully', name: 'AuthService');
+        } else {
+          developer.log('Failed to get FCM token', name: 'AuthService');
+        }
+      } catch (e) {
+        developer.log('Error updating FCM token: $e', name: 'AuthService', error: e);
+      }
+    } else {
+      developer.log('No user is currently signed in.', name: 'AuthService');
+    }
+  }
+
 }

@@ -298,6 +298,8 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
           players: _playersController.text.split(',').map((e) => e.trim()).toList(),
           createdBy: user.uid,
           createdAt: DateTime.now(),
+          oneHourNotificationSent: false,
+          oneDayNotificationSent: false,
         );
 
         developer.log('Session object created: ${session.toString()}', name: 'AddSessionScreen');
@@ -305,16 +307,6 @@ class _AddSessionScreenState extends State<AddSessionScreen> {
         try {
           await _sessionService.addSession(session);
           developer.log('Session submitted successfully: ${session.title}', name: 'AddSessionScreen');
-
-          // Schedule notification for the session
-          final notificationService = Provider.of<NotificationService>(context, listen: false);
-          developer.log('Attempting to schedule notification', name: 'AddSessionScreen');
-          try {
-            await notificationService.scheduleSessionNotification(session);
-            developer.log('Notification scheduled successfully', name: 'AddSessionScreen');
-          } catch (e) {
-            developer.log('Error scheduling notification: $e', name: 'AddSessionScreen', error: e);
-          }
 
           // 사용된 게임 룰을 기본값으로 저장
           final prefs = await SharedPreferences.getInstance();

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import 'loading_screen.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 class LoginScreen extends StatefulWidget {
   @override

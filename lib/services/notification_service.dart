@@ -9,13 +9,11 @@ import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:permission_handler/permission_handler.dart';
 
-
 class NotificationService {
   final FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin =
   FlutterLocalNotificationsPlugin();
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
 
-  // AndroidNotificationChannel 정의
   static const AndroidNotificationChannel channel = AndroidNotificationChannel(
     'rpg_session_notifications',
     'RPG Session Notifications',
@@ -46,12 +44,10 @@ class NotificationService {
     );
     await _flutterLocalNotificationsPlugin.initialize(initializationSettings);
 
-    // 알림 채널 생성
     await _flutterLocalNotificationsPlugin
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(channel);
 
-    // FCM 설정
     await _firebaseMessaging.requestPermission(
       alert: true,
       badge: true,
@@ -97,24 +93,29 @@ class NotificationService {
   Future<void> scheduleSessionNotification(Session session) async {
     if (kIsWeb) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    final notificationsEnabled = prefs.getBool('notificationsEnabled') ?? false;
+    final notificationsEnabled = await getNotificationsEnabled();
     if (!notificationsEnabled) return;
 
-    final notificationMinutesBefore = prefs.getInt('notificationMinutesBefore') ?? 30;
+    // 30분 전 알림
+    await _scheduleNotification(session, Duration(minutes: 30), '30 minutes');
 
+    // 하루 전 알림
+    await _scheduleNotification(session, Duration(days: 1), 'tomorrow');
+  }
+
+  Future<void> _scheduleNotification(Session session, Duration beforeStart, String timeDescription) async {
     final scheduledDate = tz.TZDateTime.from(
-      session.startTime.subtract(Duration(minutes: notificationMinutesBefore)),
+      session.startTime.subtract(beforeStart),
       tz.local,
     );
 
-    developer.log('Attempting to schedule notification for session: ${session.id}', name: 'NotificationService');
+    developer.log('Scheduling notification for session: ${session.id}', name: 'NotificationService');
     developer.log('Scheduled notification time: $scheduledDate', name: 'NotificationService');
 
     await _flutterLocalNotificationsPlugin.zonedSchedule(
-      session.id.hashCode,
+      session.id.hashCode + beforeStart.inMinutes, // Unique ID for each notification
       'RPG Session Reminder',
-      '${session.title} starts in $notificationMinutesBefore minutes',
+      '${session.title} starts $timeDescription',
       scheduledDate,
       NotificationDetails(
         android: AndroidNotificationDetails(
@@ -134,31 +135,6 @@ class NotificationService {
     developer.log('Notification scheduled for session: ${session.title} at ${scheduledDate.toString()}', name: 'NotificationService');
   }
 
-  Future<void> updateSessionNotifications(List<Session> sessions) async {
-    if (kIsWeb) {
-      developer.log('Web platform detected, skipping notification update', name: 'NotificationService');
-      return;
-    }
-
-    developer.log('Updating notifications for ${sessions.length} sessions', name: 'NotificationService');
-
-    await cancelAllNotifications();
-    developer.log('All previous notifications cancelled', name: 'NotificationService');
-
-    final prefs = await SharedPreferences.getInstance();
-    final notificationsEnabled = prefs.getBool('notificationsEnabled') ?? false;
-    if (!notificationsEnabled) {
-      developer.log('Notifications are disabled, skipping update', name: 'NotificationService');
-      return;
-    }
-
-    for (var session in sessions) {
-      await scheduleSessionNotification(session);
-    }
-
-    developer.log('Notifications updated for all sessions', name: 'NotificationService');
-  }
-
   Future<void> cancelNotification(int id) async {
     if (kIsWeb) return;
     await _flutterLocalNotificationsPlugin.cancel(id);
@@ -175,43 +151,25 @@ class NotificationService {
     developer.log('All notifications cancelled', name: 'NotificationService');
   }
 
-  // FCM 토큰을 서버에 등록하는 메소드
-  Future<void> registerFCMToken() async {
-    if (kIsWeb) return;
-    String? token = await _firebaseMessaging.getToken();
-    if (token != null) {
-      // TODO: 토큰을 서버에 전송하는 로직 구현
-      developer.log("FCM Token registered: $token", name: 'NotificationService');
+  Future<void> setNotificationsEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('notificationsEnabled', enabled);
+
+    if (enabled) {
+      final token = await _firebaseMessaging.getToken();
+      if (token != null) {
+        // TODO: 토큰을 서버에 보내 저장하는 로직 구현
+        developer.log('FCM Token: $token', name: 'NotificationService');
+      }
+    } else {
+      await _firebaseMessaging.deleteToken();
+      await cancelAllNotifications();
     }
   }
 
-  Future<void> sendTestNotification() async {
-    if (kIsWeb) return;
-
-    developer.log('Sending test notification', name: 'NotificationService');
-    final AndroidNotificationDetails androidPlatformChannelSpecifics =
-    AndroidNotificationDetails(
-      channel.id,
-      channel.name,
-      channelDescription: channel.description,
-      importance: Importance.max,
-      priority: Priority.high,
-    );
-    final DarwinNotificationDetails iOSPlatformChannelSpecifics =
-    DarwinNotificationDetails();
-    final NotificationDetails platformChannelSpecifics = NotificationDetails(
-      android: androidPlatformChannelSpecifics,
-      iOS: iOSPlatformChannelSpecifics,
-    );
-
-    await _flutterLocalNotificationsPlugin.show(
-      0,
-      'Test Notification',
-      'This is a test notification',
-      platformChannelSpecifics,
-    );
-
-    developer.log("Test notification sent", name: 'NotificationService');
+  Future<bool> getNotificationsEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('notificationsEnabled') ?? false;
   }
 
   Future<bool> isBatteryOptimizationDisabled() async {
@@ -228,5 +186,4 @@ class NotificationService {
       }
     }
   }
-
 }

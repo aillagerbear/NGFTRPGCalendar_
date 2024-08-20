@@ -7,7 +7,6 @@ import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import '../services/notification_service.dart';
 import '../widgets/admob_banner_widget.dart';
-import '../services/session_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   final ThemeMode themeMode;
@@ -22,11 +21,9 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  late SessionService _sessionService;
   String _sharedUrl = '';
   String? _profileImageUrl;
   bool _notificationsEnabled = false;
-  int _notificationMinutesBefore = 30;
 
   @override
   void initState() {
@@ -57,26 +54,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadNotificationSettings() async {
-    final prefs = await SharedPreferences.getInstance();
+    final notificationService = Provider.of<NotificationService>(context, listen: false);
+    final enabled = await notificationService.getNotificationsEnabled();
     setState(() {
-      _notificationsEnabled = prefs.getBool('notificationsEnabled') ?? false;
-      _notificationMinutesBefore = prefs.getInt('notificationMinutesBefore') ?? 30;
+      _notificationsEnabled = enabled;
     });
   }
 
-  Future<void> _saveNotificationSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('notificationsEnabled', _notificationsEnabled);
-    await prefs.setInt('notificationMinutesBefore', _notificationMinutesBefore);
-
+  Future<void> _saveNotificationSettings(bool value) async {
     final notificationService = Provider.of<NotificationService>(context, listen: false);
-    if (_notificationsEnabled) {
-      // Fetch all sessions and update notifications
-      final sessions = await _sessionService.fetchAllSessions();
-      await notificationService.updateSessionNotifications(sessions);
-    } else {
-      await notificationService.cancelAllNotifications();
-    }
+    await notificationService.setNotificationsEnabled(value);
+    setState(() {
+      _notificationsEnabled = value;
+    });
   }
 
   Widget _buildProfileImage(User user) {
@@ -202,35 +192,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: Text(_notificationsEnabled ? '알람이 활성화되었습니다.' : '알람이 비활성화되었습니다.'),
                     value: _notificationsEnabled,
                     onChanged: (bool value) {
-                      setState(() {
-                        _notificationsEnabled = value;
-                      });
-                      _saveNotificationSettings();
+                      _saveNotificationSettings(value);
                     },
                   ),
-                  if (_notificationsEnabled)
-                    ListTile(
-                      title: Text('알람 시간 설정'),
-                      subtitle: Text('세션 시작 $_notificationMinutesBefore분 전에 알림'),
-                      trailing: DropdownButton<int>(
-                        value: _notificationMinutesBefore,
-                        items: [5, 10, 15, 30, 60, 120].map((int value) {
-                          return DropdownMenuItem<int>(
-                            value: value,
-                            child: Text('$value분 전'),
-                          );
-                        }).toList(),
-                        onChanged: (int? newValue) {
-                          if (newValue != null) {
-                            setState(() {
-                              _notificationMinutesBefore = newValue;
-                            });
-                            _saveNotificationSettings();
-                          }
-                        },
-                      ),
-                    ),
-                  // Insert the new ListTile here
                   ListTile(
                     title: Text('배터리 최적화 비활성화'),
                     subtitle: Text('정확한 알림을 위해 배터리 최적화를 비활성화합니다.'),
@@ -246,7 +210,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             if (value) {
                               await Provider.of<NotificationService>(context, listen: false).requestDisableBatteryOptimization();
                             } else {
-                              // 사용자에게 시스템 설정으로 이동하라는 메시지 표시
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(content: Text('시스템 설정에서 배터리 최적화를 다시 활성화할 수 있습니다.')),
                               );

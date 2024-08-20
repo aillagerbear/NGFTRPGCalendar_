@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:developer' as developer;
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'screens/calendar_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/login_screen.dart';
@@ -20,6 +21,11 @@ import 'services/notification_service.dart';
 
 final GoogleSignIn googleSignIn = GoogleSignIn();
 
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  print("Handling a background message: ${message.messageId}");
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -31,24 +37,30 @@ void main() async {
     );
     developer.log('Firebase initialized successfully', name: 'main');
 
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
     if (!kIsWeb) {
-      // Initialize MobileAds only for mobile platforms
       await MobileAds.instance.initialize();
       developer.log('MobileAds initialized successfully', name: 'main');
     }
 
-    // Initialize NotificationService
     final notificationService = NotificationService();
     await notificationService.initialize();
     developer.log('NotificationService initialized successfully', name: 'main');
 
-    // Check battery optimization
     bool isBatteryOptimized = await notificationService.isBatteryOptimizationDisabled();
     developer.log('Battery optimization disabled: $isBatteryOptimized', name: 'main');
 
-    // Register FCM token
-    await notificationService.registerFCMToken();
-    developer.log('FCM token registered', name: 'main');
+    // Initialize AuthService and update FCM token
+    final authService = AuthService();
+    await authService.updateFCMToken();
+    developer.log('FCM token updated', name: 'main');
+
+    // Listen for token refresh
+    FirebaseMessaging.instance.onTokenRefresh.listen((String token) {
+      authService.updateFCMToken();
+      developer.log('FCM token refreshed', name: 'main');
+    });
 
   } catch (e) {
     developer.log('Error during initialization: $e', name: 'main', error: e);

@@ -1,5 +1,12 @@
 {
   "projects": {
     "default": "trpgcalendar-18a0a"
-  }
+  },
+  "targets": {},
+  "etags": {
+    "trpgcalendar-18a0a": {
+      "extensionInstances": {}
+    }
+  },
+  "dataconnectEmulatorConfig": {}
 }

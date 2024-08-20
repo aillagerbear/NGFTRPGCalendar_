@@ -14,6 +14,8 @@ class Session {
   final List<String> players;
   final String createdBy;
   final DateTime createdAt;
+  final bool oneHourNotificationSent;
+  final bool oneDayNotificationSent;
 
   Session({
     required this.id,
@@ -29,6 +31,8 @@ class Session {
     required this.players,
     required this.createdBy,
     required this.createdAt,
+    this.oneHourNotificationSent = false,
+    this.oneDayNotificationSent = false,
   });
 
   factory Session.fromFirestore(DocumentSnapshot doc) {
@@ -47,6 +51,8 @@ class Session {
       players: List<String>.from(data['players'] ?? []),
       createdBy: data['createdBy'] ?? '',
       createdAt: (data['createdAt'] as Timestamp).toDate(),
+      oneHourNotificationSent: data['oneHourNotificationSent'] ?? false,
+      oneDayNotificationSent: data['oneDayNotificationSent'] ?? false,
     );
   }
 
@@ -64,6 +70,8 @@ class Session {
       'players': players,
       'createdBy': createdBy,
       'createdAt': Timestamp.fromDate(createdAt),
+      'oneHourNotificationSent': oneHourNotificationSent,
+      'oneDayNotificationSent': oneDayNotificationSent,
     };
   }
 }
